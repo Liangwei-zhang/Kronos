@@ -1,0 +1,39 @@
+# Clean CSV -> Kronos batch prediction -> strict walk-forward backtest
+# Put raw per-symbol CSV files in paths.raw_data_dir. Each CSV should contain:
+# timestamps, open, high, low, close, volume, amount
+
+paths:
+  raw_data_dir: data/raw_csv
+  clean_data_dir: data/clean_csv
+  predictions_dir: outputs/predictions
+  backtest_dir: outputs/backtest
+
+prediction:
+  # Built-in choices: kronos-mini, kronos-small, kronos-base
+  model_key: kronos-small
+
+  # Optional local fine-tuned model/tokenizer directories. Leave null to use Hugging Face models.
+  model_path: null
+  tokenizer_path: null
+  max_context: 512
+
+  lookback: 512
+  pred_len: 5
+  temperature: 1.0
+  top_k: 0
+  top_p: 0.9
+  sample_count: 1
+  device: null
+
+walk_forward:
+  lookback: 512
+  pred_len: 5
+  step: 5
+  min_train_rows: 512
+  initial_capital: 100000.0
+  buy_threshold: 0.01
+  sell_threshold: -0.01
+  fee_rate: 0.0005
+  slippage_rate: 0.0005
+  max_position_pct: 1.0
+  allow_short: false
