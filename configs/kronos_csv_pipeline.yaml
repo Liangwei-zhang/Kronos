@@ -1,4 +1,4 @@
-# Clean CSV -> Kronos batch prediction -> strict walk-forward backtest
+# Clean CSV -> Kronos batch prediction -> strict walk-forward backtest -> portfolio scan
 # You can either put raw per-symbol CSV files in paths.raw_data_dir, or use the
 # download command to fetch data with yfinance.
 
@@ -7,6 +7,7 @@ paths:
   clean_data_dir: data/clean_csv
   predictions_dir: outputs/predictions
   backtest_dir: outputs/backtest
+  scanner_dir: outputs/scanner
 
 download:
   provider: yfinance
@@ -45,3 +46,13 @@ walk_forward:
   slippage_rate: 0.0005
   max_position_pct: 1.0
   allow_short: false
+
+scanner:
+  min_predicted_return: 0.01
+  min_win_rate: 0.50
+  min_sharpe: 0.0
+  max_drawdown_floor: -0.30
+  min_trade_count: 5
+  buy_score: 0.60
+  watch_score: 0.35
+  top_n: 20
