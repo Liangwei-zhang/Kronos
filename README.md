@@ -46,6 +46,8 @@
 > Kronos is the **first open-source foundation model** for financial candlesticks (K-lines), 
 > trained on data from over **45 global exchanges**.
 
+> This fork also includes a clean CSV pipeline for batch prediction and strict walk-forward backtesting. See [`docs/CLEAN_CSV_PIPELINE.md`](docs/CLEAN_CSV_PIPELINE.md).
+
 
 </div>
 
@@ -91,6 +93,16 @@ We release a family of pre-trained models with varying capacities to suit differ
 ```shell
 pip install -r requirements.txt
 ```
+
+### Clean CSV batch prediction and strict walk-forward backtesting
+
+This fork provides a command-line pipeline for per-symbol CSV files:
+
+```shell
+python -m kronos_csv_pipeline.cli run-all --config configs/kronos_csv_pipeline.yaml --symbols AAPL MSFT NVDA
+```
+
+See [`docs/CLEAN_CSV_PIPELINE.md`](docs/CLEAN_CSV_PIPELINE.md) for the CSV format, config fields, outputs, and fine-tuned model usage.
 
 ### 📈 Making Forecasts
 
