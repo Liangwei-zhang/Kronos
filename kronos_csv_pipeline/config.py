@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from .backtest import BacktestConfig, WalkForwardConfig
+from .download import DownloadConfig
 from .predict import PredictionConfig
 
 
@@ -23,6 +24,7 @@ class PipelinePaths:
 @dataclass(frozen=True)
 class PipelineConfig:
     paths: PipelinePaths
+    download: DownloadConfig
     prediction: PredictionConfig
     walk_forward: WalkForwardConfig
 
@@ -48,6 +50,7 @@ def load_pipeline_config(path: str | Path) -> PipelineConfig:
         raw = yaml.safe_load(f) or {}
 
     paths = PipelinePaths(**_section(raw, "paths"))
+    download = DownloadConfig(**_section(raw, "download"))
     prediction = PredictionConfig(**_section(raw, "prediction"))
     walk_forward = WalkForwardConfig(**_section(raw, "walk_forward"))
-    return PipelineConfig(paths=paths, prediction=prediction, walk_forward=walk_forward)
+    return PipelineConfig(paths=paths, download=download, prediction=prediction, walk_forward=walk_forward)
