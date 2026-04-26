@@ -1,12 +1,20 @@
 # Clean CSV -> Kronos batch prediction -> strict walk-forward backtest
-# Put raw per-symbol CSV files in paths.raw_data_dir. Each CSV should contain:
-# timestamps, open, high, low, close, volume, amount
+# You can either put raw per-symbol CSV files in paths.raw_data_dir, or use the
+# download command to fetch data with yfinance.
 
 paths:
   raw_data_dir: data/raw_csv
   clean_data_dir: data/clean_csv
   predictions_dir: outputs/predictions
   backtest_dir: outputs/backtest
+
+download:
+  provider: yfinance
+  period: 5y
+  interval: 1d
+  auto_adjust: true
+  start: null
+  end: null
 
 prediction:
   # Built-in choices: kronos-mini, kronos-small, kronos-base
