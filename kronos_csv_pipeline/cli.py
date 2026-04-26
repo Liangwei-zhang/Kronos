@@ -14,6 +14,7 @@ from .data import clean_data_dir
 from .download import download_symbols, load_symbols_from_file
 from .predict import predict_symbols
 from .scanner import scan_opportunities
+from .validate import validate_pipeline
 
 
 def _parse_symbols(values: Sequence[str] | None) -> list[str] | None:
@@ -33,6 +34,21 @@ def _resolve_symbols(args: argparse.Namespace) -> list[str] | None:
     if symbols:
         return list(dict.fromkeys([s.upper() for s in symbols]))
     return None
+
+
+def cmd_validate(args: argparse.Namespace) -> None:
+    symbols = _resolve_symbols(args)
+    report = validate_pipeline(
+        config_path=args.config,
+        symbols=symbols,
+        check_raw=not args.skip_raw_check,
+        check_clean=args.check_clean,
+        min_rows=args.min_rows,
+    )
+    print(report.to_string(index=False))
+    if args.validation_report:
+        Path(args.validation_report).parent.mkdir(parents=True, exist_ok=True)
+        report.to_csv(args.validation_report, index=False)
 
 
 def cmd_download(args: argparse.Namespace) -> None:
@@ -104,6 +120,17 @@ def cmd_run_all(args: argparse.Namespace) -> None:
     cfg = load_pipeline_config(args.config)
     symbols = _resolve_symbols(args)
 
+    if args.validate_first:
+        validation = validate_pipeline(
+            config_path=args.config,
+            symbols=symbols,
+            check_raw=not args.download_first,
+            check_clean=False,
+            min_rows=args.min_rows,
+        )
+        print("\n=== Validation report ===")
+        print(validation.to_string(index=False))
+
     if args.download_first:
         if not symbols:
             raise ValueError("run-all --download-first requires --symbols or --symbols-file")
@@ -155,7 +182,7 @@ def cmd_run_all(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Clean CSV -> Kronos prediction -> walk-forward backtest -> scanner")
-    parser.add_argument("command", choices=["download", "clean", "predict", "backtest", "scan", "run-all"])
+    parser.add_argument("command", choices=["validate", "download", "clean", "predict", "backtest", "scan", "run-all"])
     parser.add_argument("--config", default="configs/kronos_csv_pipeline.yaml", help="Pipeline YAML config")
     parser.add_argument("--symbols", nargs="*", help="Symbols, space-separated or comma-separated")
     parser.add_argument("--symbols-file", default=None, help="Text file with symbols, one per line or comma-separated")
@@ -166,8 +193,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--scanner-dir", default=None)
     parser.add_argument("--prediction-ranking", default=None)
     parser.add_argument("--backtest-summary", default=None)
+    parser.add_argument("--validation-report", default=None)
     parser.add_argument("--min-rows", type=int, default=128)
     parser.add_argument("--download-first", action="store_true", help="For run-all: download data before cleaning")
+    parser.add_argument("--validate-first", action="store_true", help="For run-all: validate config and environment before running")
+    parser.add_argument("--check-clean", action="store_true", help="For validate: also validate clean_data_dir")
+    parser.add_argument("--skip-raw-check", action="store_true", help="For validate: skip raw CSV validation")
     return parser
 
 
@@ -175,7 +206,9 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
 
-    if args.command == "download":
+    if args.command == "validate":
+        cmd_validate(args)
+    elif args.command == "download":
         cmd_download(args)
     elif args.command == "clean":
         cmd_clean(args)
