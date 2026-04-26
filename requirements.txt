@@ -8,6 +8,7 @@ matplotlib==3.9.3
 tqdm==4.67.1
 safetensors==0.6.2
 PyYAML>=6.0.0
+yfinance>=0.2.50
 flask>=3.0.0
 flask-cors>=4.0.0
 plotly>=5.20.0
