@@ -6,6 +6,7 @@ from .data import clean_data_dir, load_clean_csv, load_cleaned_symbols
 from .download import DownloadConfig, download_symbols, load_symbols_from_file
 from .predict import PredictionConfig, predict_symbols
 from .scanner import ScannerConfig, scan_opportunities
+from .validate import ValidationIssue, validate_pipeline
 
 __all__ = [
     "PipelineConfig",
@@ -23,4 +24,6 @@ __all__ = [
     "run_walk_forward_backtest",
     "ScannerConfig",
     "scan_opportunities",
+    "ValidationIssue",
+    "validate_pipeline",
 ]
