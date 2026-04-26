@@ -7,7 +7,9 @@ BUY / WATCH / SKIP.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from dataclasses import asdict, dataclass
+from datetime import datetime, timezone
 from pathlib import Path
 
 import numpy as np
@@ -66,6 +68,33 @@ def _action(row: pd.Series, cfg: ScannerConfig) -> str:
     if row["final_score"] >= cfg.watch_score:
         return "WATCH"
     return "SKIP"
+
+
+def _json_safe_records(df: pd.DataFrame) -> list[dict]:
+    clean = df.replace([np.inf, -np.inf], np.nan).where(pd.notnull(df), None)
+    return clean.to_dict(orient="records")
+
+
+def write_scan_json_report(result: pd.DataFrame, output_dir: str | Path, config: ScannerConfig) -> Path:
+    """Write a compact machine-readable scanner report."""
+
+    output_dir = Path(output_dir)
+    by_action = {
+        action: _json_safe_records(result[result["action"] == action])
+        for action in ["BUY", "WATCH", "SKIP"]
+    }
+    report = {
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "config": asdict(config),
+        "counts": {action: len(rows) for action, rows in by_action.items()},
+        "top": _json_safe_records(result.head(10)),
+        "buy": by_action["BUY"],
+        "watch": by_action["WATCH"],
+        "skip": by_action["SKIP"],
+    }
+    out_path = output_dir / "portfolio_scan.json"
+    out_path.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
+    return out_path
 
 
 def scan_opportunities(
@@ -167,4 +196,5 @@ def scan_opportunities(
     result[result["action"] == "BUY"].to_csv(output_dir / "buy_candidates.csv", index=False)
     result[result["action"] == "WATCH"].to_csv(output_dir / "watch_candidates.csv", index=False)
     result[result["action"] == "SKIP"].to_csv(output_dir / "skip_candidates.csv", index=False)
+    write_scan_json_report(result, output_dir, cfg)
     return result
