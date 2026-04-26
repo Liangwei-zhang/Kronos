@@ -11,6 +11,7 @@ import yaml
 from .backtest import BacktestConfig, WalkForwardConfig
 from .download import DownloadConfig
 from .predict import PredictionConfig
+from .scanner import ScannerConfig
 
 
 @dataclass(frozen=True)
@@ -19,6 +20,7 @@ class PipelinePaths:
     clean_data_dir: str = "data/clean_csv"
     predictions_dir: str = "outputs/predictions"
     backtest_dir: str = "outputs/backtest"
+    scanner_dir: str = "outputs/scanner"
 
 
 @dataclass(frozen=True)
@@ -27,6 +29,7 @@ class PipelineConfig:
     download: DownloadConfig
     prediction: PredictionConfig
     walk_forward: WalkForwardConfig
+    scanner: ScannerConfig
 
     def to_backtest_config(self) -> BacktestConfig:
         return BacktestConfig(prediction=self.prediction, walk_forward=self.walk_forward)
@@ -53,4 +56,5 @@ def load_pipeline_config(path: str | Path) -> PipelineConfig:
     download = DownloadConfig(**_section(raw, "download"))
     prediction = PredictionConfig(**_section(raw, "prediction"))
     walk_forward = WalkForwardConfig(**_section(raw, "walk_forward"))
-    return PipelineConfig(paths=paths, download=download, prediction=prediction, walk_forward=walk_forward)
+    scanner = ScannerConfig(**_section(raw, "scanner"))
+    return PipelineConfig(paths=paths, download=download, prediction=prediction, walk_forward=walk_forward, scanner=scanner)
