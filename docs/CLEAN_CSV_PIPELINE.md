@@ -42,7 +42,43 @@ Accepted timestamp aliases include `timestamp`, `datetime`, `date`, and `time`. 
 pip install -r requirements.txt
 ```
 
-## 3. Edit config
+## 3. Download Nasdaq / US stock data
+
+The pipeline includes an optional yfinance downloader. Default settings are in `configs/kronos_csv_pipeline.yaml`:
+
+```yaml
+download:
+  provider: yfinance
+  period: 5y
+  interval: 1d
+  auto_adjust: true
+```
+
+Download a few symbols:
+
+```bash
+python -m kronos_csv_pipeline.cli download \
+  --config configs/kronos_csv_pipeline.yaml \
+  --symbols AAPL MSFT NVDA
+```
+
+Download the default watchlist:
+
+```bash
+python -m kronos_csv_pipeline.cli download \
+  --config configs/kronos_csv_pipeline.yaml \
+  --symbols-file configs/nasdaq_watchlist.txt
+```
+
+Outputs:
+
+```text
+data/raw_csv/AAPL.csv
+data/raw_csv/MSFT.csv
+data/raw_csv/download_report.csv
+```
+
+## 4. Edit config
 
 Default config:
 
@@ -69,7 +105,7 @@ walk_forward:
   slippage_rate: 0.0005
 ```
 
-## 4. Clean data
+## 5. Clean data
 
 ```bash
 python -m kronos_csv_pipeline.cli clean \
@@ -86,7 +122,7 @@ data/clean_csv/NVDA.csv
 data/clean_csv/clean_report.csv
 ```
 
-## 5. Batch prediction
+## 6. Batch prediction
 
 ```bash
 python -m kronos_csv_pipeline.cli predict \
@@ -103,7 +139,7 @@ outputs/predictions/NVDA_prediction.csv
 outputs/predictions/prediction_ranking.csv
 ```
 
-## 6. Strict walk-forward backtest
+## 7. Strict walk-forward backtest
 
 ```bash
 python -m kronos_csv_pipeline.cli backtest \
@@ -122,7 +158,9 @@ The backtester uses only the previous `lookback` rows at each forecast origin. I
 
 Known future timestamps are used for time embeddings. This is allowed because market calendars are known before a trade and do not leak future prices.
 
-## 7. Run all steps
+## 8. Run all steps
+
+Use existing raw CSV files:
 
 ```bash
 python -m kronos_csv_pipeline.cli run-all \
@@ -130,7 +168,16 @@ python -m kronos_csv_pipeline.cli run-all \
   --symbols AAPL MSFT NVDA
 ```
 
-## 8. Use a fine-tuned model
+Download first, then clean/predict/backtest:
+
+```bash
+python -m kronos_csv_pipeline.cli run-all \
+  --config configs/kronos_csv_pipeline.yaml \
+  --symbols-file configs/nasdaq_watchlist.txt \
+  --download-first
+```
+
+## 9. Use a fine-tuned model
 
 After fine-tuning with `finetune_csv/train_sequential.py`, update the config:
 
@@ -142,7 +189,7 @@ prediction:
 
 Then rerun prediction/backtest.
 
-## 9. Output metrics
+## 10. Output metrics
 
 The walk-forward summary includes:
 
@@ -161,7 +208,7 @@ score
 
 The `score` is only a ranking helper. Do not treat it as a guarantee of future profit.
 
-## 10. Notes
+## 11. Notes
 
 This is research infrastructure, not a production trading system. Before using signals with real money, add:
 
