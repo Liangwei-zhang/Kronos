@@ -177,7 +177,26 @@ python -m kronos_csv_pipeline.cli run-all \
   --download-first
 ```
 
-## 9. Use a fine-tuned model
+## 9. Portfolio scanner
+
+`run-all` automatically runs the scanner after prediction and backtest. To run only the scanner:
+
+```bash
+python -m kronos_csv_pipeline.cli scan \
+  --config configs/kronos_csv_pipeline.yaml
+```
+
+Outputs:
+
+```text
+outputs/scanner/portfolio_scan.csv
+outputs/scanner/portfolio_scan.json
+outputs/scanner/buy_candidates.csv
+outputs/scanner/watch_candidates.csv
+outputs/scanner/skip_candidates.csv
+```
+
+## 10. Use a fine-tuned model
 
 After fine-tuning with `finetune_csv/train_sequential.py`, update the config:
 
@@ -189,7 +208,7 @@ prediction:
 
 Then rerun prediction/backtest.
 
-## 10. Output metrics
+## 11. Output metrics
 
 The walk-forward summary includes:
 
@@ -208,7 +227,17 @@ score
 
 The `score` is only a ranking helper. Do not treat it as a guarantee of future profit.
 
-## 11. Notes
+## 12. Run tests
+
+The lightweight test suite covers CSV cleaning and scanner output generation:
+
+```bash
+pytest tests/test_csv_pipeline.py
+```
+
+These tests do not download market data and do not load Kronos weights, so they should run quickly.
+
+## 13. Notes
 
 This is research infrastructure, not a production trading system. Before using signals with real money, add:
 
