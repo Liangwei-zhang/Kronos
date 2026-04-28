@@ -8,6 +8,7 @@ paths:
   predictions_dir: outputs/predictions
   backtest_dir: outputs/backtest
   scanner_dir: outputs/scanner
+  baseline_dir: outputs/baseline
 
 download:
   provider: yfinance
@@ -39,6 +40,22 @@ walk_forward:
   pred_len: 5
   step: 5
   min_train_rows: 512
+  initial_capital: 100000.0
+  buy_threshold: 0.01
+  sell_threshold: -0.01
+  fee_rate: 0.0005
+  slippage_rate: 0.0005
+  max_position_pct: 1.0
+  allow_short: false
+
+baseline:
+  strategy: momentum   # momentum, mean_reversion, ma_cross
+  lookback: 120
+  pred_len: 5
+  step: 5
+  signal_window: 20
+  fast_ma: 20
+  slow_ma: 60
   initial_capital: 100000.0
   buy_threshold: 0.01
   sell_threshold: -0.01
