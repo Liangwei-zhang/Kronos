@@ -6,7 +6,7 @@ as sanity checks and benchmarks for Kronos, not replacements for Kronos.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Sequence
 
@@ -15,6 +15,9 @@ import pandas as pd
 
 from .backtest import _max_drawdown, _profit_factor, _safe_sharpe, _score_row
 from .data import load_cleaned_symbols
+
+
+BASELINE_STRATEGIES = ["momentum", "mean_reversion", "ma_cross"]
 
 
 @dataclass(frozen=True)
@@ -185,3 +188,71 @@ def run_baseline_backtest(
         summary_df = summary_df.sort_values("score", ascending=False).reset_index(drop=True)
     summary_df.to_csv(output_dir / f"baseline_{config.strategy}_summary.csv", index=False)
     return summary_df
+
+
+def _aggregate_strategy_result(strategy: str, df: pd.DataFrame) -> dict:
+    valid = df[df.get("score", -999.0) > -999.0].copy()
+    if valid.empty:
+        return {
+            "strategy": strategy,
+            "symbols": 0,
+            "avg_win_rate": 0.0,
+            "median_win_rate": 0.0,
+            "avg_profit_factor": 0.0,
+            "median_profit_factor": 0.0,
+            "avg_total_return": 0.0,
+            "avg_max_drawdown": 0.0,
+            "avg_sharpe": 0.0,
+            "avg_score": -999.0,
+        }
+    pf = pd.to_numeric(valid["profit_factor"].replace(np.inf, 5.0), errors="coerce").fillna(0.0)
+    return {
+        "strategy": strategy,
+        "symbols": len(valid),
+        "avg_win_rate": float(valid["win_rate"].mean()),
+        "median_win_rate": float(valid["win_rate"].median()),
+        "avg_profit_factor": float(pf.mean()),
+        "median_profit_factor": float(pf.median()),
+        "avg_total_return": float(valid["total_return"].mean()),
+        "avg_max_drawdown": float(valid["max_drawdown"].mean()),
+        "avg_sharpe": float(valid["sharpe"].mean()),
+        "avg_score": float(valid["score"].mean()),
+    }
+
+
+def run_baseline_suite(
+    clean_dir: str | Path,
+    output_dir: str | Path,
+    config: BaselineConfig,
+    symbols: Sequence[str] | None = None,
+    strategies: Sequence[str] | None = None,
+) -> pd.DataFrame:
+    """Run multiple baseline strategies and write a comparison table.
+
+    This is useful before running Kronos: it establishes a no-model benchmark for
+    win rate, profit factor, drawdown, and score on the same universe.
+    """
+
+    output_dir = Path(output_dir)
+    output_dir.mkdir(parents=True, exist_ok=True)
+    strategies = list(strategies or BASELINE_STRATEGIES)
+
+    aggregate_rows: list[dict] = []
+    all_rows: list[pd.DataFrame] = []
+    for strategy in strategies:
+        strategy_cfg = replace(config, strategy=strategy)
+        result = run_baseline_backtest(clean_dir, output_dir, strategy_cfg, symbols=symbols)
+        aggregate_rows.append(_aggregate_strategy_result(strategy, result))
+        all_rows.append(result.assign(strategy=strategy))
+
+    comparison = pd.DataFrame(aggregate_rows).sort_values("avg_score", ascending=False).reset_index(drop=True)
+    comparison.to_csv(output_dir / "baseline_strategy_comparison.csv", index=False)
+
+    if all_rows:
+        combined = pd.concat(all_rows, ignore_index=True)
+        combined.to_csv(output_dir / "baseline_all_strategy_symbols.csv", index=False)
+        best_by_symbol = combined.sort_values("score", ascending=False).drop_duplicates("symbol", keep="first")
+        best_by_symbol = best_by_symbol.sort_values("score", ascending=False).reset_index(drop=True)
+        best_by_symbol.to_csv(output_dir / "baseline_best_strategy_by_symbol.csv", index=False)
+
+    return comparison
