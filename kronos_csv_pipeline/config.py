@@ -9,6 +9,7 @@ from typing import Any
 import yaml
 
 from .backtest import BacktestConfig, WalkForwardConfig
+from .baseline import BaselineConfig
 from .download import DownloadConfig
 from .predict import PredictionConfig
 from .scanner import ScannerConfig
@@ -21,6 +22,7 @@ class PipelinePaths:
     predictions_dir: str = "outputs/predictions"
     backtest_dir: str = "outputs/backtest"
     scanner_dir: str = "outputs/scanner"
+    baseline_dir: str = "outputs/baseline"
 
 
 @dataclass(frozen=True)
@@ -30,6 +32,7 @@ class PipelineConfig:
     prediction: PredictionConfig
     walk_forward: WalkForwardConfig
     scanner: ScannerConfig
+    baseline: BaselineConfig
 
     def to_backtest_config(self) -> BacktestConfig:
         return BacktestConfig(prediction=self.prediction, walk_forward=self.walk_forward)
@@ -57,4 +60,12 @@ def load_pipeline_config(path: str | Path) -> PipelineConfig:
     prediction = PredictionConfig(**_section(raw, "prediction"))
     walk_forward = WalkForwardConfig(**_section(raw, "walk_forward"))
     scanner = ScannerConfig(**_section(raw, "scanner"))
-    return PipelineConfig(paths=paths, download=download, prediction=prediction, walk_forward=walk_forward, scanner=scanner)
+    baseline = BaselineConfig(**_section(raw, "baseline"))
+    return PipelineConfig(
+        paths=paths,
+        download=download,
+        prediction=prediction,
+        walk_forward=walk_forward,
+        scanner=scanner,
+        baseline=baseline,
+    )
