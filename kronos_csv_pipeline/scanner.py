@@ -1,8 +1,8 @@
-"""Portfolio scanner for combining predictions and walk-forward backtest metrics.
+"""Portfolio scanner for combining predictions, backtest metrics, and risk controls.
 
 The scanner is intentionally rule-based. It combines the latest Kronos prediction
 ranking with historical walk-forward performance, then outputs actionable buckets:
-BUY / WATCH / SKIP.
+BUY / WATCH / SKIP plus suggested position sizing and risk flags.
 """
 
 from __future__ import annotations
@@ -26,6 +26,16 @@ class ScannerConfig:
     buy_score: float = 0.60
     watch_score: float = 0.35
     top_n: int = 20
+
+    # Risk controls for research / paper trading outputs.
+    account_equity: float = 100_000.0
+    max_position_pct: float = 0.10
+    max_single_trade_risk_pct: float = 0.01
+    default_stop_loss_pct: float = 0.08
+    min_liquidity_dollar_volume: float = 0.0
+    block_if_drawdown_below: float = -0.50
+    block_if_profit_factor_below: float = 0.90
+    block_if_trade_count_below: int = 5
 
 
 def _safe_read_csv(path: str | Path) -> pd.DataFrame:
@@ -51,10 +61,30 @@ def _norm_drawdown(series: pd.Series, floor: float) -> pd.Series:
     return score.clip(0.0, 1.0)
 
 
+def _risk_flags(row: pd.Series, cfg: ScannerConfig) -> list[str]:
+    flags: list[str] = []
+    if row.get("error", "") not in ["", np.nan] and isinstance(row.get("error", ""), str) and row.get("error", ""):
+        flags.append("ERROR")
+    if float(row.get("max_drawdown", 0.0)) < cfg.block_if_drawdown_below:
+        flags.append("DRAWDOWN_BLOCK")
+    if float(row.get("profit_factor", 0.0)) < cfg.block_if_profit_factor_below:
+        flags.append("PF_BLOCK")
+    if int(float(row.get("trade_count", 0))) < cfg.block_if_trade_count_below:
+        flags.append("LOW_TRADE_COUNT")
+    if float(row.get("predicted_return", 0.0)) < cfg.min_predicted_return:
+        flags.append("LOW_PRED_RETURN")
+    if "avg_dollar_volume_60d" in row.index:
+        liq = float(row.get("avg_dollar_volume_60d", 0.0) or 0.0)
+        if cfg.min_liquidity_dollar_volume > 0 and liq < cfg.min_liquidity_dollar_volume:
+            flags.append("LOW_LIQUIDITY")
+    return flags
+
+
 def _action(row: pd.Series, cfg: ScannerConfig) -> str:
-    if row.get("error", "") not in ["", np.nan] and isinstance(row.get("error", ""), str):
-        if row.get("error", ""):
-            return "SKIP"
+    flags = _risk_flags(row, cfg)
+    hard_blockers = {"ERROR", "DRAWDOWN_BLOCK", "PF_BLOCK", "LOW_TRADE_COUNT", "LOW_LIQUIDITY"}
+    if any(flag in hard_blockers for flag in flags):
+        return "SKIP"
 
     hard_pass = (
         row["predicted_return"] >= cfg.min_predicted_return
@@ -68,6 +98,29 @@ def _action(row: pd.Series, cfg: ScannerConfig) -> str:
     if row["final_score"] >= cfg.watch_score:
         return "WATCH"
     return "SKIP"
+
+
+def _position_size(row: pd.Series, cfg: ScannerConfig) -> tuple[float, float, float]:
+    """Return suggested shares, notional dollars, and stop loss price."""
+
+    last_close = float(row.get("last_close", 0.0) or 0.0)
+    if last_close <= 0 or row.get("action") != "BUY":
+        return 0.0, 0.0, 0.0
+
+    score = float(row.get("final_score", 0.0) or 0.0)
+    stop_loss_pct = cfg.default_stop_loss_pct
+    stop_price = last_close * (1.0 - stop_loss_pct)
+
+    max_notional = cfg.account_equity * cfg.max_position_pct
+    risk_budget = cfg.account_equity * cfg.max_single_trade_risk_pct
+    risk_per_share = max(last_close - stop_price, 1e-9)
+    risk_sized_notional = (risk_budget / risk_per_share) * last_close
+
+    confidence_multiplier = min(max(score, 0.0), 1.0)
+    notional = min(max_notional, risk_sized_notional) * confidence_multiplier
+    shares = np.floor(notional / last_close)
+    notional = float(shares * last_close)
+    return float(shares), notional, float(stop_price)
 
 
 def _json_safe_records(df: pd.DataFrame) -> list[dict]:
@@ -129,6 +182,9 @@ def scan_opportunities(
         "avg_trade_return": 0.0,
         "profit_factor": 0.0,
         "trade_count": 0,
+        "last_close": 0.0,
+        "pred_final_close": 0.0,
+        "avg_dollar_volume_60d": 0.0,
     }
     for col, default in numeric_defaults.items():
         if col not in merged.columns:
@@ -160,12 +216,27 @@ def scan_opportunities(
 
     if "error" not in merged.columns:
         merged["error"] = ""
+    merged["risk_flags"] = merged.apply(lambda row: ";".join(_risk_flags(row, cfg)), axis=1)
     merged["action"] = merged.apply(lambda row: _action(row, cfg), axis=1)
+
+    sizing = merged.apply(lambda row: _position_size(row, cfg), axis=1, result_type="expand")
+    sizing.columns = ["suggested_shares", "suggested_notional", "suggested_stop_loss"]
+    merged = pd.concat([merged, sizing], axis=1)
+    merged["suggested_position_pct"] = np.where(
+        cfg.account_equity > 0,
+        merged["suggested_notional"] / cfg.account_equity,
+        0.0,
+    )
 
     ordered_cols = [
         "symbol",
         "action",
+        "risk_flags",
         "final_score",
+        "suggested_shares",
+        "suggested_notional",
+        "suggested_position_pct",
+        "suggested_stop_loss",
         "predicted_return",
         "predicted_upside",
         "predicted_drawdown",
@@ -180,6 +251,7 @@ def scan_opportunities(
         "trade_count",
         "last_close",
         "pred_final_close",
+        "avg_dollar_volume_60d",
         "error",
     ]
     for col in ordered_cols:
