@@ -1,0 +1,120 @@
+name: Online baseline backtest
+
+on:
+  workflow_dispatch:
+    inputs:
+      symbols_file:
+        description: "Symbols file path"
+        required: true
+        default: "configs/nasdaq_watchlist.txt"
+      config:
+        description: "Pipeline config path"
+        required: true
+        default: "configs/kronos_csv_pipeline.yaml"
+      min_rows:
+        description: "Minimum clean rows per symbol"
+        required: true
+        default: "260"
+      run_kronos:
+        description: "Run true Kronos after baseline. Requires model download to work."
+        required: true
+        type: choice
+        options:
+          - "false"
+          - "true"
+        default: "false"
+
+jobs:
+  online-backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Validate pipeline config
+        run: |
+          python -m kronos_csv_pipeline.cli validate \
+            --config "${{ inputs.config }}" \
+            --symbols-file "${{ inputs.symbols_file }}" \
+            --skip-raw-check \
+            --validation-report outputs/validation_report.csv
+
+      - name: Download data and run baseline
+        if: ${{ inputs.run_kronos == 'false' }}
+        run: |
+          python -m kronos_csv_pipeline.cli run-all \
+            --config "${{ inputs.config }}" \
+            --symbols-file "${{ inputs.symbols_file }}" \
+            --download-first \
+            --baseline-only \
+            --min-rows "${{ inputs.min_rows }}"
+
+      - name: Download data, run baseline, and run Kronos
+        if: ${{ inputs.run_kronos == 'true' }}
+        run: |
+          python -m kronos_csv_pipeline.cli run-all \
+            --config "${{ inputs.config }}" \
+            --symbols-file "${{ inputs.symbols_file }}" \
+            --download-first \
+            --run-baseline \
+            --min-rows "${{ inputs.min_rows }}"
+
+      - name: Summarize baseline output
+        if: always()
+        run: |
+          echo "## Online baseline backtest" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Symbols file: ${{ inputs.symbols_file }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Config: ${{ inputs.config }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "Run Kronos: ${{ inputs.run_kronos }}" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          if [ -f outputs/baseline/baseline_momentum_summary.csv ]; then
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+import pandas as pd
+from pathlib import Path
+p = Path('outputs/baseline/baseline_momentum_summary.csv')
+df = pd.read_csv(p)
+if 'error' in df.columns:
+    ok = df[df['error'].isna() | (df['error'].astype(str) == '')]
+else:
+    ok = df
+print(f"Rows: {len(df)}")
+if len(ok):
+    pf = pd.to_numeric(ok.get('profit_factor'), errors='coerce').replace(float('inf'), 5)
+    print(f"Average win_rate: {pd.to_numeric(ok.get('win_rate'), errors='coerce').mean():.2%}")
+    print(f"Median win_rate: {pd.to_numeric(ok.get('win_rate'), errors='coerce').median():.2%}")
+    print(f"Average profit_factor: {pf.mean():.2f}")
+    print("")
+    cols = [c for c in ['symbol','win_rate','profit_factor','total_return','max_drawdown','sharpe','score'] if c in ok.columns]
+    print(ok.sort_values('score', ascending=False)[cols].head(20).to_markdown(index=False))
+else:
+    print('No successful baseline rows found.')
+PY
+          else
+            echo "baseline_momentum_summary.csv not found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload outputs artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: online-baseline-backtest-outputs
+          path: |
+            outputs/
+            data/raw_csv/download_report.csv
+            data/clean_csv/clean_report.csv
+          if-no-files-found: warn
+          retention-days: 14
