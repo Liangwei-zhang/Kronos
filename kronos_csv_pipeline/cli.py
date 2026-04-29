@@ -14,6 +14,7 @@ from .config import load_pipeline_config
 from .data import clean_data_dir
 from .download import download_symbols, load_symbols_from_file
 from .predict import predict_symbols
+from .risk import apply_risk_filter
 from .scanner import scan_opportunities
 from .validate import validate_pipeline
 
@@ -129,6 +130,17 @@ def cmd_scan(args: argparse.Namespace) -> None:
     print(result.to_string(index=False))
 
 
+def cmd_risk(args: argparse.Namespace) -> None:
+    cfg = load_pipeline_config(args.config)
+    approved = apply_risk_filter(
+        scanner_path=args.scanner_input or Path(cfg.paths.scanner_dir) / "portfolio_scan.csv",
+        output_dir=args.risk_dir or cfg.paths.risk_dir,
+        config=cfg.risk,
+        liquidity_path=args.liquidity_file,
+    )
+    print(approved.to_string(index=False))
+
+
 def cmd_run_all(args: argparse.Namespace) -> None:
     cfg = load_pipeline_config(args.config)
     symbols = _resolve_symbols(args)
@@ -213,10 +225,20 @@ def cmd_run_all(args: argparse.Namespace) -> None:
     print("\n=== Portfolio scan ===")
     print(scan.to_string(index=False))
 
+    if args.apply_risk:
+        approved = apply_risk_filter(
+            scanner_path=Path(args.scanner_dir or cfg.paths.scanner_dir) / "portfolio_scan.csv",
+            output_dir=args.risk_dir or cfg.paths.risk_dir,
+            config=cfg.risk,
+            liquidity_path=args.liquidity_file,
+        )
+        print("\n=== Risk-approved candidates ===")
+        print(approved.to_string(index=False))
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Clean CSV -> Kronos prediction -> walk-forward backtest -> scanner")
-    parser.add_argument("command", choices=["validate", "download", "clean", "predict", "backtest", "baseline", "scan", "run-all"])
+    parser.add_argument("command", choices=["validate", "download", "clean", "predict", "backtest", "baseline", "scan", "risk", "run-all"])
     parser.add_argument("--config", default="configs/kronos_csv_pipeline.yaml", help="Pipeline YAML config")
     parser.add_argument("--symbols", nargs="*", help="Symbols, space-separated or comma-separated")
     parser.add_argument("--symbols-file", default=None, help="Text file with symbols, one per line or comma-separated")
@@ -226,6 +248,9 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--backtest-dir", default=None)
     parser.add_argument("--scanner-dir", default=None)
     parser.add_argument("--baseline-dir", default=None)
+    parser.add_argument("--risk-dir", default=None)
+    parser.add_argument("--scanner-input", default=None)
+    parser.add_argument("--liquidity-file", default=None)
     parser.add_argument("--prediction-ranking", default=None)
     parser.add_argument("--backtest-summary", default=None)
     parser.add_argument("--validation-report", default=None)
@@ -236,6 +261,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-raw-check", action="store_true", help="For validate: skip raw CSV validation")
     parser.add_argument("--run-baseline", action="store_true", help="For run-all: also run fast baseline before Kronos")
     parser.add_argument("--baseline-only", action="store_true", help="For run-all: clean and run baseline only, without Kronos")
+    parser.add_argument("--apply-risk", action="store_true", help="For run-all: apply risk filter after scanner")
     return parser
 
 
@@ -257,6 +283,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         cmd_baseline(args)
     elif args.command == "scan":
         cmd_scan(args)
+    elif args.command == "risk":
+        cmd_risk(args)
     elif args.command == "run-all":
         cmd_run_all(args)
     else:
