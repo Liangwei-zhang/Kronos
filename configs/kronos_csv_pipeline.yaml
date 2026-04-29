@@ -73,3 +73,13 @@ scanner:
   buy_score: 0.60
   watch_score: 0.35
   top_n: 20
+
+  # Research / paper-trading risk controls.
+  account_equity: 100000.0
+  max_position_pct: 0.10
+  max_single_trade_risk_pct: 0.01
+  default_stop_loss_pct: 0.08
+  min_liquidity_dollar_volume: 0.0
+  block_if_drawdown_below: -0.50
+  block_if_profit_factor_below: 0.90
+  block_if_trade_count_below: 5
