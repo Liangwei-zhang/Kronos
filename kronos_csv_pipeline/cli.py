@@ -10,6 +10,7 @@ import pandas as pd
 
 from .backtest import run_walk_forward_backtest
 from .baseline import run_baseline_backtest
+from .compare import compare_results
 from .config import load_pipeline_config
 from .data import clean_data_dir
 from .download import download_symbols, load_symbols_from_file
@@ -119,6 +120,17 @@ def cmd_baseline(args: argparse.Namespace) -> None:
     print(summary.to_string(index=False))
 
 
+def cmd_compare(args: argparse.Namespace) -> None:
+    cfg = load_pipeline_config(args.config)
+    report = compare_results(
+        kronos_summary_path=args.kronos_summary or Path(cfg.paths.backtest_dir) / "walk_forward_summary.csv",
+        baseline_summary_path=args.baseline_summary or Path(cfg.paths.baseline_dir) / f"baseline_{cfg.baseline.strategy}_summary.csv",
+        output_dir=args.compare_dir or cfg.paths.compare_dir,
+        config=cfg.compare,
+    )
+    print(report.to_string(index=False))
+
+
 def cmd_scan(args: argparse.Namespace) -> None:
     cfg = load_pipeline_config(args.config)
     result = scan_opportunities(
@@ -177,6 +189,7 @@ def cmd_run_all(args: argparse.Namespace) -> None:
     print("\n=== Clean report ===")
     print(report_df.to_string(index=False))
 
+    baseline_ran = False
     if args.baseline_only:
         baseline = run_baseline_backtest(
             clean_dir=args.clean_data_dir or cfg.paths.clean_data_dir,
@@ -195,6 +208,7 @@ def cmd_run_all(args: argparse.Namespace) -> None:
             config=cfg.baseline,
             symbols=symbols,
         )
+        baseline_ran = True
         print("\n=== Baseline summary ===")
         print(baseline.to_string(index=False))
 
@@ -215,6 +229,16 @@ def cmd_run_all(args: argparse.Namespace) -> None:
     )
     print("\n=== Walk-forward summary ===")
     print(summary.to_string(index=False))
+
+    if args.compare or baseline_ran:
+        comparison = compare_results(
+            kronos_summary_path=Path(args.backtest_dir or cfg.paths.backtest_dir) / "walk_forward_summary.csv",
+            baseline_summary_path=Path(args.baseline_dir or cfg.paths.baseline_dir) / f"baseline_{cfg.baseline.strategy}_summary.csv",
+            output_dir=args.compare_dir or cfg.paths.compare_dir,
+            config=cfg.compare,
+        )
+        print("\n=== Kronos vs baseline comparison ===")
+        print(comparison.to_string(index=False))
 
     scan = scan_opportunities(
         predictions_path=Path(args.predictions_dir or cfg.paths.predictions_dir) / "prediction_ranking.csv",
@@ -238,7 +262,7 @@ def cmd_run_all(args: argparse.Namespace) -> None:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Clean CSV -> Kronos prediction -> walk-forward backtest -> scanner")
-    parser.add_argument("command", choices=["validate", "download", "clean", "predict", "backtest", "baseline", "scan", "risk", "run-all"])
+    parser.add_argument("command", choices=["validate", "download", "clean", "predict", "backtest", "baseline", "compare", "scan", "risk", "run-all"])
     parser.add_argument("--config", default="configs/kronos_csv_pipeline.yaml", help="Pipeline YAML config")
     parser.add_argument("--symbols", nargs="*", help="Symbols, space-separated or comma-separated")
     parser.add_argument("--symbols-file", default=None, help="Text file with symbols, one per line or comma-separated")
@@ -248,11 +272,14 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--backtest-dir", default=None)
     parser.add_argument("--scanner-dir", default=None)
     parser.add_argument("--baseline-dir", default=None)
+    parser.add_argument("--compare-dir", default=None)
     parser.add_argument("--risk-dir", default=None)
     parser.add_argument("--scanner-input", default=None)
     parser.add_argument("--liquidity-file", default=None)
     parser.add_argument("--prediction-ranking", default=None)
     parser.add_argument("--backtest-summary", default=None)
+    parser.add_argument("--kronos-summary", default=None)
+    parser.add_argument("--baseline-summary", default=None)
     parser.add_argument("--validation-report", default=None)
     parser.add_argument("--min-rows", type=int, default=128)
     parser.add_argument("--download-first", action="store_true", help="For run-all: download data before cleaning")
@@ -261,6 +288,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--skip-raw-check", action="store_true", help="For validate: skip raw CSV validation")
     parser.add_argument("--run-baseline", action="store_true", help="For run-all: also run fast baseline before Kronos")
     parser.add_argument("--baseline-only", action="store_true", help="For run-all: clean and run baseline only, without Kronos")
+    parser.add_argument("--compare", action="store_true", help="For run-all: compare Kronos backtest against baseline output")
     parser.add_argument("--apply-risk", action="store_true", help="For run-all: apply risk filter after scanner")
     return parser
 
@@ -281,6 +309,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         cmd_backtest(args)
     elif args.command == "baseline":
         cmd_baseline(args)
+    elif args.command == "compare":
+        cmd_compare(args)
     elif args.command == "scan":
         cmd_scan(args)
     elif args.command == "risk":
