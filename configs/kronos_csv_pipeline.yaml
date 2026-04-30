@@ -9,6 +9,8 @@ paths:
   backtest_dir: outputs/backtest
   scanner_dir: outputs/scanner
   baseline_dir: outputs/baseline
+  risk_dir: outputs/risk
+  compare_dir: outputs/compare
 
 download:
   provider: yfinance
@@ -64,6 +66,13 @@ baseline:
   max_position_pct: 1.0
   allow_short: false
 
+compare:
+  min_profit_factor_delta: 0.10
+  min_sharpe_delta: 0.10
+  max_drawdown_delta: 0.05
+  min_win_rate_delta: 0.00
+  min_symbols: 5
+
 scanner:
   min_predicted_return: 0.01
   min_win_rate: 0.50
@@ -83,3 +92,17 @@ scanner:
   block_if_drawdown_below: -0.50
   block_if_profit_factor_below: 0.90
   block_if_trade_count_below: 5
+
+risk:
+  account_equity: 100000.0
+  max_position_pct: 0.10
+  max_total_exposure_pct: 0.50
+  max_daily_loss_pct: 0.02
+  max_portfolio_drawdown_pct: 0.10
+  max_open_positions: 10
+  min_profit_factor: 1.10
+  min_win_rate: 0.50
+  max_symbol_drawdown: -0.50
+  min_trade_count: 5
+  require_action: BUY
+  default_stop_loss_pct: 0.08
