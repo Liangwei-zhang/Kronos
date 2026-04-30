@@ -10,6 +10,7 @@ import yaml
 
 from .backtest import BacktestConfig, WalkForwardConfig
 from .baseline import BaselineConfig
+from .compare import CompareConfig
 from .download import DownloadConfig
 from .predict import PredictionConfig
 from .risk import RiskConfig
@@ -25,6 +26,7 @@ class PipelinePaths:
     scanner_dir: str = "outputs/scanner"
     baseline_dir: str = "outputs/baseline"
     risk_dir: str = "outputs/risk"
+    compare_dir: str = "outputs/compare"
 
 
 @dataclass(frozen=True)
@@ -36,6 +38,7 @@ class PipelineConfig:
     scanner: ScannerConfig
     baseline: BaselineConfig
     risk: RiskConfig
+    compare: CompareConfig
 
     def to_backtest_config(self) -> BacktestConfig:
         return BacktestConfig(prediction=self.prediction, walk_forward=self.walk_forward)
@@ -65,6 +68,7 @@ def load_pipeline_config(path: str | Path) -> PipelineConfig:
     scanner = ScannerConfig(**_section(raw, "scanner"))
     baseline = BaselineConfig(**_section(raw, "baseline"))
     risk = RiskConfig(**_section(raw, "risk"))
+    compare = CompareConfig(**_section(raw, "compare"))
     return PipelineConfig(
         paths=paths,
         download=download,
@@ -73,4 +77,5 @@ def load_pipeline_config(path: str | Path) -> PipelineConfig:
         scanner=scanner,
         baseline=baseline,
         risk=risk,
+        compare=compare,
     )
