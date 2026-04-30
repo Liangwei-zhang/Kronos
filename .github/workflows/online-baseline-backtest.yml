@@ -62,7 +62,7 @@ jobs:
             --baseline-only \
             --min-rows "${{ inputs.min_rows }}"
 
-      - name: Download data, run baseline, and run Kronos
+      - name: Download data, run baseline, run Kronos, and compare
         if: ${{ inputs.run_kronos == 'true' }}
         run: |
           python -m kronos_csv_pipeline.cli run-all \
@@ -70,9 +70,10 @@ jobs:
             --symbols-file "${{ inputs.symbols_file }}" \
             --download-first \
             --run-baseline \
+            --compare \
             --min-rows "${{ inputs.min_rows }}"
 
-      - name: Summarize baseline output
+      - name: Summarize baseline and comparison output
         if: always()
         run: |
           echo "## Online baseline backtest" >> "$GITHUB_STEP_SUMMARY"
@@ -105,6 +106,25 @@ else:
 PY
           else
             echo "baseline_momentum_summary.csv not found." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+          if [ -f outputs/compare/kronos_vs_baseline_summary.json ]; then
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "## Kronos vs baseline comparison" >> "$GITHUB_STEP_SUMMARY"
+            python - <<'PY' >> "$GITHUB_STEP_SUMMARY"
+import json
+from pathlib import Path
+p = Path('outputs/compare/kronos_vs_baseline_summary.json')
+data = json.loads(p.read_text())
+for k in [
+    'symbol_count', 'kronos_better_count', 'kronos_better_rate',
+    'kronos_avg_win_rate', 'baseline_avg_win_rate', 'avg_win_rate_delta',
+    'kronos_avg_profit_factor', 'baseline_avg_profit_factor', 'avg_profit_factor_delta',
+    'kronos_avg_sharpe', 'baseline_avg_sharpe', 'avg_sharpe_delta',
+    'verdict'
+]:
+    print(f"- {k}: {data.get(k)}")
+PY
           fi
 
       - name: Upload outputs artifact
